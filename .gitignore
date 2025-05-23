@@ -1,0 +1,46 @@
+# ROS 2 build and log folders (if package built directly)
+build/
+install/
+log/
+
+# Colcon metadata
+.colcon/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# CMake and catkin
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+
+# ROS messages/services/actions auto-generated
+msg_gen/
+srv_gen/
+action_gen/
+*.msg.cpp
+*.srv.cpp
+*.action.cpp
+
+# Test artifacts
+test_results/
+
+# Launch and config backups
+*.launch~*
+*.yaml~*
+*.xml~*
+
+# Miscellaneous
+*.log
