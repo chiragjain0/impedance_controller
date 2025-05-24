@@ -55,6 +55,9 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     Eigen::Quaterniond orientation_;
     Eigen::Vector3d position_;
 
+    Vector7d dq_filtered_;
+
+
     bool initialization_flag_;
 
     Eigen::Matrix<double, 6, 6> stiffness_;
@@ -65,7 +68,7 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     const std::string k_robot_state_interface_name{"robot_state"};
 
   // Compliance parameters
-  const double translational_stiffness{1050.0};
+  const double translational_stiffness{200.0};
   const double rotational_stiffness{10.0};
 
 

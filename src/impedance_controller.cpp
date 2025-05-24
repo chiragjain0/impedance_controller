@@ -61,11 +61,12 @@ Eigen::Vector3d ImpedanceController::compute_new_position() {
     Eigen::Vector3d new_position = position_;
     // new_position.x() -= delta_x;
     // new_position.z() -= delta_z;
-    new_position.x() -= (delta_x*0) - 0.01;
-    new_position.z() -= (delta_z*0) + 0.01;
+    new_position.x() = 0.5 + (0*delta_x*delta_z);
+    // new_position.z() = 0.3;
 
     return new_position;
 }
+
 
 
 CallbackReturn ImpedanceController::on_init(){
@@ -122,7 +123,7 @@ CallbackReturn ImpedanceController::on_activate(const rclcpp_lifecycle::State& )
 
     initialization_flag_ = true;
     elapsed_time_ = 0.0;
-    // dq_filtered_.setZero();
+    dq_filtered_.setZero();
     // Eigen::MatrixXd stiffness(6, 6), damping(6, 6);
     stiffness_.setZero();
     stiffness_.topLeftCorner(3, 3) << translational_stiffness * Eigen::MatrixXd::Identity(3, 3);
@@ -152,17 +153,27 @@ controller_interface::return_type ImpedanceController::update(const rclcpp::Time
 
         initialization_flag_ = false;
       }
+
+
     
     std::array<double, 7> coriolis_array = franka_robot_model_->getCoriolisForceVector();
     std::array<double, 42> endeffector_jacobian_wrt_base =
     franka_robot_model_->getZeroJacobian(franka::Frame::kEndEffector);
+    std::array<double, 16> pose_ = franka_robot_model_->getPoseMatrix(franka::Frame::kEndEffector);
 
     Eigen::Map<const Eigen::Matrix<double, 7, 1>> coriolis(coriolis_array.data());
     Eigen::Map<const Eigen::Matrix<double, 6, 7>> jacobian(endeffector_jacobian_wrt_base.data());
+    Eigen::Map<const Eigen::Matrix<double, 4, 4>> pose(pose_.data());
+    position_ = pose.block<3, 1>(0, 3);
+    RCLCPP_INFO(get_node()->get_logger(), "position: [%f, %f]", position_.x(), position_.z());
+
 
     update_joint_states();
-    // Vector7d joint_positions_current_eigen(joint_positions_current_.data());
+
     Vector7d joint_velocities_current_eigen(joint_velocities_current_.data());
+
+    const double kAlpha = 0.99;
+    dq_filtered_ = (1 - kAlpha) * dq_filtered_ + kAlpha * joint_velocities_current_eigen;
 
     Eigen::Vector3d new_position = compute_new_position();
 
@@ -170,10 +181,11 @@ controller_interface::return_type ImpedanceController::update(const rclcpp::Time
     error.setZero();
     error.head(3) << new_position - position_;
 
-    Eigen::VectorXd tau_task(7), tau_d(7);
+    RCLCPP_INFO(get_node()->get_logger(), "Error: [%f, %f, %f]", error(0), error(1), error(2));
+    // Eigen::VectorXd tau_task(7), tau_d(7);
 
-    tau_task << jacobian.transpose() * (stiffness_ * error - damping_ * (jacobian * joint_velocities_current_eigen));
-    tau_d << tau_task + coriolis;
+    Eigen::VectorXd tau_task = jacobian.transpose() * (stiffness_ * error - damping_ * (jacobian * dq_filtered_));
+    Eigen::VectorXd tau_d = tau_task + coriolis;
 
     std::array<double, 7> tau_d_array{};
     Eigen::VectorXd::Map(&tau_d_array[0], 7) = tau_d;
@@ -191,3 +203,6 @@ controller_interface::return_type ImpedanceController::update(const rclcpp::Time
 PLUGINLIB_EXPORT_CLASS(impedance_controller::ImpedanceController,
                        controller_interface::ControllerInterface)
 
+                    //    x: 0.3260455288095073
+                    //    y: -0.009117261395096865
+                    //    z: 0.48691686703217407
