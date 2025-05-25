@@ -1,7 +1,13 @@
+#pragma once
+
+#include <rclcpp/rclcpp.hpp>
+
 #include <franka_msgs/srv/set_pose.hpp>
 
+#include <Eigen/Eigen>
+#include <Eigen/Dense>
 
-using namespace impedance_controller{
+namespace impedance_controller{
 
     class PoseInputServer {
 
@@ -12,13 +18,12 @@ using namespace impedance_controller{
         rotation_d_target_(rotation){}
         int main(int argc, char **argv);
 
-
         private:
             Eigen::Vector3d* position_d_target_;
             Eigen::Vector3d* rotation_d_target_;
 
-            void setpose(const std::shared_ptr<franka_msgs::Srv::SetPose::Request> request,
+            void setpose(const std::shared_ptr<franka_msgs::srv::SetPose::Request> request,
                          std::shared_ptr<franka_msgs::srv::SetPose::Response> response);
-    }
+    };
 
 }

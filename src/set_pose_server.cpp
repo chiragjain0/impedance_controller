@@ -1,9 +1,10 @@
-#include "rclcpp/rclpcpp.h"
+
+#include <rclcpp/rclcpp.hpp>
 #include "impedance_controller/impedance_controller.hpp"
 
-using namespace impedance_controller {
+namespace impedance_controller {
 
-void PoseInputServer::setpose(const std::shared_ptr<franka_msgs::Srv::SetPose::Request> request,
+void PoseInputServer::setpose(const std::shared_ptr<franka_msgs::srv::SetPose::Request> request,
                                 std::shared_ptr<franka_msgs::srv::SetPose::Response> response){
                                     (*position_d_target_)[0] = request->x;
                                     (*position_d_target_)[1] = request->y;
@@ -11,10 +12,12 @@ void PoseInputServer::setpose(const std::shared_ptr<franka_msgs::Srv::SetPose::R
                                     (*rotation_d_target_)[0] = request->roll;
                                     (*rotation_d_target_)[1] = request->pitch;
                                     (*rotation_d_target_)[2] = request->yaw;
+
+                                    response->success = true;
                                 }
 
-int PoseInputServer::main(int argc, char **argv){
-    rclcpp::init(argc, argv);
+int PoseInputServer::main(int /*argc*/, char** /***argv*/){
+    // rclcpp::init(argc, argv);
 
     std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("set_pose_server");
 

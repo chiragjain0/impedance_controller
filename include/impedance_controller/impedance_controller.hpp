@@ -1,14 +1,23 @@
 #pragma once
 
+#include <array>
+#include <cassert>
+#include <cmath>
+#include <cstring>
+#include <exception>
+#include <memory>
+#include <mutex>
 #include <string>
-
+#include <unistd.h>
+#include <thread>
+#include <chrono>  
 #include <Eigen/Eigen>
 #include <Eigen/Dense>
 
 #include <controller_interface/controller_interface.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <franka_msgs/srv/set_pose.hpp>
-#include <impedance_controller/set_pose_server.hpp>
+#include "impedance_controller/set_pose_server.hpp"
 
 #include "franka_semantic_components/franka_cartesian_pose_interface.hpp"
 #include "franka_semantic_components/franka_robot_model.hpp"
@@ -63,6 +72,8 @@ class ImpedanceController : public controller_interface::ControllerInterface {
 
     Vector7d dq_filtered_;
 
+    // std::unique_ptr<PoseInputServer> pose_server_obj_;
+
     Eigen::Matrix<double, 6, 1> pose_s_;
 
     bool initialization_flag_;
@@ -73,7 +84,7 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     double translational_stiffness_;
     double rotational_stiffness_;
 
-    Eigen::Vector3d position_d_target_ = {0.5, 0.0, 0.5};
+    Eigen::Vector3d position_d_target_ = {0.5, 0.0, 0.3};
     Eigen::Vector3d rotation_d_target_ = {M_PI, 0.0, 0.0};
   
 

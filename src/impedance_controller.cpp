@@ -61,8 +61,8 @@ Eigen::Vector3d ImpedanceController::compute_new_position() {
     Eigen::Vector3d new_position = position_;
     new_position.x() -= delta_x;
     new_position.z() -= delta_z;
-    new_position.x() = 0.5 + (0*delta_x*delta_z);
-    new_position.z() = 0.3;
+    new_position.x() = position_d_target_(0);
+    new_position.z() = position_d_target_(2);
 
     return new_position;
 
@@ -84,7 +84,7 @@ Eigen::VectorXd ImpedanceController::compute_torque(const Eigen::Vector3d& new_p
 
     error.tail(3) << orientation_error;
 
-    RCLCPP_INFO(get_node()->get_logger(), "Error: [%f, %f, %f]", error(0), error(1), error(2));
+    // RCLCPP_INFO(get_node()->get_logger(), "Error: [%f, %f, %f]", error(0), error(1), error(2));
 
     Eigen::VectorXd tau_task = jacobian.transpose() * (stiffness_ * error - damping_ * (jacobian * dq_filtered_));
     Eigen::VectorXd tau_d = tau_task + coriolis;
@@ -96,7 +96,7 @@ Eigen::VectorXd ImpedanceController::compute_torque(const Eigen::Vector3d& new_p
 CallbackReturn ImpedanceController::on_init(){
 
     PoseInputServer pose_server_obj(&position_d_target_, &rotation_d_target_);
-    std::thread input_thread(&PoseInputServer::main, pose_server_obj,0,nullptr);
+    std::thread input_thread(&PoseInputServer::main, pose_server_obj, 0, nullptr);
     input_thread.detach();
 
     franka_cartesian_pose_ = std::make_unique<franka_semantic_components::FrankaCartesianPoseInterface>
@@ -167,9 +167,9 @@ CallbackReturn ImpedanceController::on_activate(const rclcpp_lifecycle::State& )
     stiffness_.topLeftCorner(3, 3) << translational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
     stiffness_.bottomRightCorner(3, 3) << rotational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
     damping_.setZero();
-    damping_.topLeftCorner(3, 3) << 2.0 * sqrt(translational_stiffness_) *
+    damping_.topLeftCorner(3, 3) << 1.2 * sqrt(translational_stiffness_) *
                                         Eigen::MatrixXd::Identity(3, 3);
-    damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness_) *
+    damping_.bottomRightCorner(3, 3) << 1.2 * sqrt(rotational_stiffness_) *
                                             Eigen::MatrixXd::Identity(3, 3);
 
     franka_cartesian_pose_->assign_loaned_state_interfaces(state_interfaces_);
@@ -193,7 +193,7 @@ controller_interface::return_type ImpedanceController::update(const rclcpp::Time
         initialization_flag_ = false;
       }
 
-    // RCLCPP_INFO(get_node()->get_logger(), "position: [%f, %f]", position_.x(), position_.z());
+    // RCLCPP_INFO(get_node()->get_logger(), "position: [%f, %f]", position_d_target_(0), position_d_target_(2));
 
     std::array<double, 7> coriolis_array = franka_robot_model_->getCoriolisForceVector();
     std::array<double, 42> endeffector_jacobian_wrt_base =

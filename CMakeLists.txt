@@ -24,6 +24,7 @@ add_library(
   ${PROJECT_NAME}
   SHARED 
   src/impedance_controller.cpp
+  src/set_pose_server.cpp
 )
 
 
