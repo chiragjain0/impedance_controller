@@ -94,6 +94,11 @@ Eigen::VectorXd ImpedanceController::compute_torque(const Eigen::Vector3d& new_p
 }
 
 CallbackReturn ImpedanceController::on_init(){
+
+    PoseInputServer pose_server_obj(&position_d_target_, &rotation_d_target_);
+    std::thread input_thread(&PoseInputServer::main, pose_server_obj,0,nullptr);
+    input_thread.detach();
+
     franka_cartesian_pose_ = std::make_unique<franka_semantic_components::FrankaCartesianPoseInterface>
                                 (franka_semantic_components::FrankaCartesianPoseInterface(k_elbow_activated));
 

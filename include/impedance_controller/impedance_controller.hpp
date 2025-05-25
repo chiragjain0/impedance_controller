@@ -8,7 +8,7 @@
 #include <controller_interface/controller_interface.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <franka_msgs/srv/set_pose.hpp>
-
+#include <impedance_controller/set_pose_server.hpp>
 
 #include "franka_semantic_components/franka_cartesian_pose_interface.hpp"
 #include "franka_semantic_components/franka_robot_model.hpp"
@@ -34,6 +34,9 @@ class ImpedanceController : public controller_interface::ControllerInterface {
 
 
     private :
+
+    rclcpp::Service<franka_msgs::srv::SetPose>::SharedPtr pose_srv_; //check
+
 
     bool assign_parameters();
     void update_parameters();
@@ -70,6 +73,8 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     double translational_stiffness_;
     double rotational_stiffness_;
 
+    Eigen::Vector3d position_d_target_ = {0.5, 0.0, 0.5};
+    Eigen::Vector3d rotation_d_target_ = {M_PI, 0.0, 0.0};
   
 
     const std::string k_robot_model_interface_name{"robot_model"};
