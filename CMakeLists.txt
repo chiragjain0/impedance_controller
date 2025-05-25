@@ -19,6 +19,7 @@ find_package(franka_semantic_components REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
+
 add_library(
   ${PROJECT_NAME}
   SHARED 

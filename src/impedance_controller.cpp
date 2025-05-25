@@ -39,7 +39,7 @@ ImpedanceController::state_interface_configuration() const {
     return config;
 }
 
-void ImpedanceController::update_joint_states() {
+void ImpedanceController::update_parameters() {
     for (auto i = 0; i < num_joints_; ++i) {
       // TODO(yazi_ba) Can we get the state from its name?
       const auto& position_interface = state_interfaces_.at(16 + i);
@@ -59,15 +59,39 @@ Eigen::Vector3d ImpedanceController::compute_new_position() {
     double delta_z = radius * (std::cos(angle) - 1);
 
     Eigen::Vector3d new_position = position_;
-    // new_position.x() -= delta_x;
-    // new_position.z() -= delta_z;
+    new_position.x() -= delta_x;
+    new_position.z() -= delta_z;
     new_position.x() = 0.5 + (0*delta_x*delta_z);
-    // new_position.z() = 0.3;
+    new_position.z() = 0.3;
 
     return new_position;
+
 }
 
+Eigen::VectorXd ImpedanceController::compute_torque(const Eigen::Vector3d& new_position,
+                                                    const Eigen::Matrix<double, 6, 7>& jacobian, 
+                                                    const Eigen::Matrix<double, 7, 1>& coriolis,
+                                                    const Eigen::Vector3d& orientation_error) {
+    
+    Vector7d joint_velocities_current_eigen(joint_velocities_current_.data());
 
+    const double kAlpha = 0.99;
+    dq_filtered_ = (1 - kAlpha) * dq_filtered_ + kAlpha * joint_velocities_current_eigen;
+
+    Eigen::Matrix<double, 6, 1> error;
+    error.setZero();
+    error.head(3) << new_position - position_;
+
+    error.tail(3) << orientation_error;
+
+    RCLCPP_INFO(get_node()->get_logger(), "Error: [%f, %f, %f]", error(0), error(1), error(2));
+
+    Eigen::VectorXd tau_task = jacobian.transpose() * (stiffness_ * error - damping_ * (jacobian * dq_filtered_));
+    Eigen::VectorXd tau_d = tau_task + coriolis;
+
+    return tau_d;
+
+}
 
 CallbackReturn ImpedanceController::on_init(){
     franka_cartesian_pose_ = std::make_unique<franka_semantic_components::FrankaCartesianPoseInterface>
@@ -87,6 +111,12 @@ CallbackReturn ImpedanceController::on_configure(const rclcpp_lifecycle::State& 
     if(!assign_parameters()) {
         return CallbackReturn::FAILURE;
     }
+
+    auto translational_stiffness = get_node()->get_parameter("translational_stiffness").as_double();
+    auto rotational_stiffness = get_node()->get_parameter("rotational_stiffness").as_double();
+
+    translational_stiffness_ = translational_stiffness;
+    rotational_stiffness_ = rotational_stiffness;
 
     franka_robot_model_ = std::make_unique<franka_semantic_components::FrankaRobotModel>(
         franka_semantic_components::FrankaRobotModel(arm_id_ + "/" + k_robot_model_interface_name, 
@@ -114,7 +144,9 @@ CallbackReturn ImpedanceController::on_configure(const rclcpp_lifecycle::State& 
         RCLCPP_INFO(get_node()->get_logger(), "Default collision behavior set.");
         }
     
-        return CallbackReturn::SUCCESS;
+    
+    
+    return CallbackReturn::SUCCESS;
 
 }
 
@@ -124,15 +156,17 @@ CallbackReturn ImpedanceController::on_activate(const rclcpp_lifecycle::State& )
     initialization_flag_ = true;
     elapsed_time_ = 0.0;
     dq_filtered_.setZero();
+
     // Eigen::MatrixXd stiffness(6, 6), damping(6, 6);
     stiffness_.setZero();
-    stiffness_.topLeftCorner(3, 3) << translational_stiffness * Eigen::MatrixXd::Identity(3, 3);
-    stiffness_.bottomRightCorner(3, 3) << rotational_stiffness * Eigen::MatrixXd::Identity(3, 3);
+    stiffness_.topLeftCorner(3, 3) << translational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
+    stiffness_.bottomRightCorner(3, 3) << rotational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
     damping_.setZero();
-    damping_.topLeftCorner(3, 3) << 2.0 * sqrt(translational_stiffness) *
+    damping_.topLeftCorner(3, 3) << 2.0 * sqrt(translational_stiffness_) *
                                         Eigen::MatrixXd::Identity(3, 3);
-    damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness) *
+    damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness_) *
                                             Eigen::MatrixXd::Identity(3, 3);
+
     franka_cartesian_pose_->assign_loaned_state_interfaces(state_interfaces_);
     franka_robot_model_->assign_loaned_state_interfaces(state_interfaces_);
   
@@ -148,44 +182,44 @@ CallbackReturn ImpedanceController::on_deactivate(const rclcpp_lifecycle::State&
 controller_interface::return_type ImpedanceController::update(const rclcpp::Time& , const rclcpp::Duration&){
 
     if (initialization_flag_) {
-        std::tie(orientation_, position_) =
+        std::tie(orientation_d, position_) =
             franka_cartesian_pose_->getInitialOrientationAndTranslation();
 
         initialization_flag_ = false;
       }
 
+    // RCLCPP_INFO(get_node()->get_logger(), "position: [%f, %f]", position_.x(), position_.z());
 
-    
     std::array<double, 7> coriolis_array = franka_robot_model_->getCoriolisForceVector();
     std::array<double, 42> endeffector_jacobian_wrt_base =
     franka_robot_model_->getZeroJacobian(franka::Frame::kEndEffector);
     std::array<double, 16> pose_ = franka_robot_model_->getPoseMatrix(franka::Frame::kEndEffector);
 
+
     Eigen::Map<const Eigen::Matrix<double, 7, 1>> coriolis(coriolis_array.data());
     Eigen::Map<const Eigen::Matrix<double, 6, 7>> jacobian(endeffector_jacobian_wrt_base.data());
     Eigen::Map<const Eigen::Matrix<double, 4, 4>> pose(pose_.data());
     position_ = pose.block<3, 1>(0, 3);
-    RCLCPP_INFO(get_node()->get_logger(), "position: [%f, %f]", position_.x(), position_.z());
 
+    Eigen::Matrix3d rotation_matrix = pose.block<3, 3>(0, 0);
+    orientation_ = Eigen::Quaterniond(rotation_matrix);
 
-    update_joint_states();
+    if(orientation_d.coeffs().dot(orientation_.coeffs()) < 0.0){
+        orientation_.coeffs() << -orientation_.coeffs();
+    }
 
-    Vector7d joint_velocities_current_eigen(joint_velocities_current_.data());
+    Eigen::Quaterniond error_quaternion(orientation_.inverse() * orientation_d);
+    Eigen::Vector3d orientation_error = rotation_matrix * Eigen::Vector3d(
+        error_quaternion.x(),
+        error_quaternion.y(),
+        error_quaternion.z()
+    );
 
-    const double kAlpha = 0.99;
-    dq_filtered_ = (1 - kAlpha) * dq_filtered_ + kAlpha * joint_velocities_current_eigen;
+    update_parameters();
 
     Eigen::Vector3d new_position = compute_new_position();
 
-    Eigen::Matrix<double, 6, 1> error;
-    error.setZero();
-    error.head(3) << new_position - position_;
-
-    RCLCPP_INFO(get_node()->get_logger(), "Error: [%f, %f, %f]", error(0), error(1), error(2));
-    // Eigen::VectorXd tau_task(7), tau_d(7);
-
-    Eigen::VectorXd tau_task = jacobian.transpose() * (stiffness_ * error - damping_ * (jacobian * dq_filtered_));
-    Eigen::VectorXd tau_d = tau_task + coriolis;
+    Eigen::VectorXd tau_d = compute_torque(new_position, jacobian, coriolis, orientation_error);
 
     std::array<double, 7> tau_d_array{};
     Eigen::VectorXd::Map(&tau_d_array[0], 7) = tau_d;
@@ -202,7 +236,3 @@ controller_interface::return_type ImpedanceController::update(const rclcpp::Time
 // NOLINTNEXTLINE
 PLUGINLIB_EXPORT_CLASS(impedance_controller::ImpedanceController,
                        controller_interface::ControllerInterface)
-
-                    //    x: 0.3260455288095073
-                    //    y: -0.009117261395096865
-                    //    z: 0.48691686703217407

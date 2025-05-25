@@ -7,6 +7,8 @@
 
 #include <controller_interface/controller_interface.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <franka_msgs/srv/set_pose.hpp>
+
 
 #include "franka_semantic_components/franka_cartesian_pose_interface.hpp"
 #include "franka_semantic_components/franka_robot_model.hpp"
@@ -34,7 +36,7 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     private :
 
     bool assign_parameters();
-    void update_joint_states();
+    void update_parameters();
 
     Eigen::Vector3d compute_new_position();
     
@@ -53,24 +55,35 @@ class ImpedanceController : public controller_interface::ControllerInterface {
     double trajectory_period_{0.001};
 
     Eigen::Quaterniond orientation_;
+    Eigen::Quaterniond orientation_d;
     Eigen::Vector3d position_;
 
     Vector7d dq_filtered_;
 
+    Eigen::Matrix<double, 6, 1> pose_s_;
 
     bool initialization_flag_;
 
     Eigen::Matrix<double, 6, 6> stiffness_;
     Eigen::Matrix<double, 6, 6> damping_;
+    // Compliance parameters
+    double translational_stiffness_;
+    double rotational_stiffness_;
+
   
 
     const std::string k_robot_model_interface_name{"robot_model"};
     const std::string k_robot_state_interface_name{"robot_state"};
 
-  // Compliance parameters
-  const double translational_stiffness{200.0};
-  const double rotational_stiffness{10.0};
 
+
+  Eigen::VectorXd compute_torque( const Eigen::Vector3d& new_position,
+                                  const Eigen::Matrix<double, 6, 7>& jacobian, 
+                                  const Eigen::Matrix<double, 7, 1>& coriolis,
+                                  const Eigen::Vector3d& orientation_error); 
+
+  void setpose(const std::shared_ptr<franka_msgs::srv::SetPose::Request> request,
+                std::shared_ptr<franka_msgs::srv::SetPose::Response> response);
 
 
 };

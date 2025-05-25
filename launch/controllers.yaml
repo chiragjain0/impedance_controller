@@ -4,3 +4,10 @@ controller_manager:
 
     cartesian_impedance_controller:
       type: impedance_controller/ImpedanceController
+
+impedance_controller:
+  ros_parameters:
+    translational_stiffness:
+      150.0
+    rotational_stiffness:
+      10.0
