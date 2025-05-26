@@ -167,9 +167,9 @@ CallbackReturn ImpedanceController::on_activate(const rclcpp_lifecycle::State& )
     stiffness_.topLeftCorner(3, 3) << translational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
     stiffness_.bottomRightCorner(3, 3) << rotational_stiffness_ * Eigen::MatrixXd::Identity(3, 3);
     damping_.setZero();
-    damping_.topLeftCorner(3, 3) << 1.2 * sqrt(translational_stiffness_) *
+    damping_.topLeftCorner(3, 3) << 2.0 * sqrt(translational_stiffness_) *
                                         Eigen::MatrixXd::Identity(3, 3);
-    damping_.bottomRightCorner(3, 3) << 1.2 * sqrt(rotational_stiffness_) *
+    damping_.bottomRightCorner(3, 3) << 2.0 * sqrt(rotational_stiffness_) *
                                             Eigen::MatrixXd::Identity(3, 3);
 
     franka_cartesian_pose_->assign_loaned_state_interfaces(state_interfaces_);
